@@ -12,7 +12,10 @@ Students must complete TC-02 and TC-03.
 Sinh viên cần hoàn thành TC-02 và TC-03.*)
 """
 import os
+import sys
 import pytest
+
+sys.path.insert(0, os.path.dirname(__file__))
 from conftest import enable_flutter_semantics, flutter_fill, flutter_click_button, wait_for_flutter, SCREENSHOT_DIR
 
 
@@ -89,9 +92,25 @@ def test_login_fail_wrong_password(page, test_config):
         6. Assert: URL still on login page OR error message shown
            (*Assert: URL vẫn ở trang đăng nhập HOẶC có thông báo lỗi*)
     """
-    # TODO: Students implement here (Sinh viên viết code ở đây)
-    pytest.skip("Not implemented — student must complete (Chưa hoàn thành)")
+    # TODO: 
+    # [R] Reachability: Navigate to login page and enable semantics for Flutter interaction [4, 5]
+    page.goto(test_config["base_url"], wait_until="networkidle", timeout=60000)
+    enable_flutter_semantics(page)
 
+    # [I] Infection: Enter correct email but an incorrect password to trigger error logic [6, 7]
+    flutter_fill(page, "Email", test_config["email"])
+    flutter_fill(page, "Mật khẩu", "wrong_password_123")
+    flutter_click_button(page, "Đăng nhập")
+
+    # [P] Propagation: Wait for the specific error message to propagate to the UI [8, 9]
+    # (Smart Wait used to avoid non-deterministic time.sleep errors [3, 10])
+    expected_error = "Mật khẩu không đúng"
+    wait_for_flutter(page, text=expected_error)
+    page.screenshot(path=os.path.join(SCREENSHOT_DIR, "tc02_test_login_fail_wrong_password.png"))
+
+    # [R✓] Revealability: Strong Oracle verifying the exact error string from SRS REQ-01 [6, 8, 11]
+    sem_text = " ".join(page.locator("flt-semantics").all_text_contents())
+    assert expected_error in sem_text, f"Expected error '{expected_error}' not found in UI"
 
 def test_login_fail_empty_fields(page, test_config):
     """TC-03: Login fail – empty fields (*Đăng nhập thất bại – để trống các trường*)
@@ -110,5 +129,68 @@ def test_login_fail_empty_fields(page, test_config):
            (*KHÔNG nhập Email/Mật khẩu — click "Đăng nhập" ngay*)
         4. Assert: URL still on login page (*Assert: URL vẫn ở trang đăng nhập*)
     """
-    # TODO: Students implement here (Sinh viên viết code ở đây)
-    pytest.skip("Not implemented — student must complete (Chưa hoàn thành)")
+    # TODO: 
+    # [R] Reachability: Access the system entry point [5, 9]
+    page.goto(test_config["base_url"], wait_until="networkidle", timeout=60000)
+    enable_flutter_semantics(page)
+
+    # [I] Infection: Click Login immediately without providing credentials [8, 12]
+    flutter_click_button(page, "Đăng nhập")
+
+    # [P] Propagation: Wait for the system to display the mandatory field warning [6, 8]
+    expected_error = "Vui lòng nhập email và mật khẩu"
+    wait_for_flutter(page, text=expected_error)
+    page.screenshot(path=os.path.join(SCREENSHOT_DIR, "tc03_test_login_fail_empty_fields.png"))
+
+    # [R✓] Revealability: Verify the error message matches the SRS exactly [8, 13]
+    sem_text = " ".join(page.locator("flt-semantics").all_text_contents())
+    assert expected_error in sem_text, f"Expected validation message '{expected_error}' not found"
+
+@pytest.mark.parametrize("email, password, expected_error, tc_id", [
+    ("ba.nguyen@email.com", "wrong_password_123", "Mật khẩu không đúng", "tc02"),
+    ("", "", "Vui lòng nhập email và mật khẩu", "tc03"),
+])
+def test_login_failure(page, test_config, email, password, expected_error, tc_id):
+    """
+    Combined test for TC-02 and TC-03 using Data-Driven Testing (Bonus B2).
+    Uses Strong Oracle (Bonus B3) to verify specific SRS error messages.
+    """
+    # [R] Reachability: Navigate to login page and enable semantics for Flutter interaction
+    page.goto(test_config["base_url"], wait_until="networkidle", timeout=60000)
+    enable_flutter_semantics(page)
+
+    # [I] Infection: Input credentials (valid/invalid/empty) to trigger system logic
+    flutter_fill(page, "Email", email)
+    flutter_fill(page, "Mật khẩu", password)
+    flutter_click_button(page, "Đăng nhập")
+
+    # [P] Propagation: Smart Wait for the specific error message to appear in the UI
+    # This avoids flaky tests and is required for Flutter Web [2]
+    wait_for_flutter(page, text=expected_error)
+
+    # [R✓] Revealability: Strong Oracle verifying the exact text defined in REQ-01 [3]
+    sem_text = " ".join(page.locator("flt-semantics").all_text_contents())
+    assert expected_error in sem_text, f"Expected error '{expected_error}' not found in UI"
+
+    # Screenshot: Automatic evidence for the report [4]
+    page.screenshot(path=os.path.join(SCREENSHOT_DIR, f"{tc_id}_failure.png"))
+
+def test_extra_login_fail_invalid_email(page, test_config):
+    """TC-13 (Bonus B1): Login fail – non-existent email (*Email không tồn tại*)"""
+    # [R] Reachability: Reach the login UI [5, 9]
+    page.goto(test_config["base_url"])
+    enable_flutter_semantics(page)
+
+    # [I] Infection: Input an email that does not exist in the seed data [7]
+    flutter_fill(page, "Email", "nobody@test.com")
+    flutter_fill(page, "Mật khẩu", "any_pass")
+    flutter_click_button(page, "Đăng nhập")
+
+    # [P] Propagation: Wait for error state to surface at UI level [6, 8]
+    expected_error = "Không tìm thấy thành viên"
+    wait_for_flutter(page, text=expected_error)
+    page.screenshot(path=os.path.join(SCREENSHOT_DIR, "tc13_extra_test_login_fail_invalid_email.png"))
+
+    # [R✓] Revealability: Assert the specific rejection reason is revealed [6, 14]
+    sem_text = " ".join(page.locator("flt-semantics").all_text_contents())
+    assert expected_error in sem_text, f"Expected error '{expected_error}' was not revealed"
